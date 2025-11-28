@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 interface Activity {
   id: number;
@@ -17,6 +18,7 @@ interface Activity {
   points: number;
   date: string;
   description: string;
+  month: string;
 }
 
 interface Category {
@@ -55,12 +57,14 @@ const Index = () => {
     }
 
     const points = parseInt(newActivityPoints);
+    const now = new Date();
     const newActivity: Activity = {
       id: Date.now(),
       category: selectedCategory.name,
       title: newActivityTitle,
       points: points,
-      date: new Date().toLocaleDateString('ru-RU'),
+      date: now.toLocaleDateString('ru-RU'),
+      month: now.toLocaleDateString('ru-RU', { month: 'short', year: 'numeric' }),
       description: newActivityDescription,
     };
 
@@ -104,6 +108,30 @@ const Index = () => {
     { name: 'Мастер', icon: 'Crown', unlocked: false },
     { name: 'Легенда', icon: 'Zap', unlocked: false },
   ];
+
+  const allActivities = useMemo(() => {
+    return categories.flatMap(cat => cat.activities);
+  }, [categories]);
+
+  const monthlyData = useMemo(() => {
+    const grouped: Record<string, number> = {};
+    allActivities.forEach(activity => {
+      grouped[activity.month] = (grouped[activity.month] || 0) + activity.points;
+    });
+    return Object.entries(grouped)
+      .map(([month, points]) => ({ month, points }))
+      .slice(-6);
+  }, [allActivities]);
+
+  const categoryData = useMemo(() => {
+    return categories.map(cat => ({
+      name: cat.name.split(' ')[0],
+      points: cat.totalPoints,
+      color: cat.color
+    }));
+  }, [categories]);
+
+  const CHART_COLORS = ['#8B5CF6', '#F97316', '#0EA5E9', '#10B981', '#EC4899', '#F59E0B', '#6366F1', '#14B8A6'];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 p-4 md:p-8">
@@ -180,6 +208,72 @@ const Index = () => {
             </CardContent>
           </Card>
         </div>
+
+        {monthlyData.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="animate-fade-in hover:shadow-xl transition-all duration-300 border-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Icon name="BarChart3" className="text-primary" size={24} />
+                  Динамика по месяцам
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={monthlyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis dataKey="month" stroke="#6B7280" style={{ fontSize: '12px' }} />
+                    <YAxis stroke="#6B7280" style={{ fontSize: '12px' }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#fff', border: '2px solid #8B5CF6', borderRadius: '8px' }}
+                      labelStyle={{ color: '#1F2937', fontWeight: 'bold' }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="points" 
+                      stroke="#8B5CF6" 
+                      strokeWidth={3} 
+                      dot={{ fill: '#8B5CF6', r: 6 }}
+                      activeDot={{ r: 8 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card className="animate-fade-in hover:shadow-xl transition-all duration-300 border-2" style={{ animationDelay: '0.05s' }}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Icon name="PieChart" className="text-secondary" size={24} />
+                  Распределение по категориям
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="points"
+                    >
+                      {categoryData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#fff', border: '2px solid #F97316', borderRadius: '8px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         <div>
           <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
